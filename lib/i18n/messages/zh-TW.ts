@@ -244,6 +244,7 @@ export const zhTWLocale: LocalePlugin = {
     "sidebar.uploadFilesTitle": "將檔案上傳到專案根目錄",
     "sidebar.uploadFiles": "上傳檔案",
     "sidebar.refreshExplorer": "重新整理檔案瀏覽器",
+    "sidebar.resizeExplorer": "拖動以調整檔案瀏覽器高度",
     "sidebar.searchFiles": "搜尋檔案",
     "sidebar.searchFilesPlaceholder": "搜尋檔案…",
     "sidebar.searchingFiles": "搜尋中…",

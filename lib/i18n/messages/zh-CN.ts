@@ -244,6 +244,7 @@ export const zhCNLocale: LocalePlugin = {
     "sidebar.uploadFilesTitle": "将文件上传到项目根目录",
     "sidebar.uploadFiles": "上传文件",
     "sidebar.refreshExplorer": "刷新文件浏览器",
+    "sidebar.resizeExplorer": "拖动以调整文件浏览器高度",
     "sidebar.searchFiles": "搜索文件",
     "sidebar.searchFilesPlaceholder": "搜索文件…",
     "sidebar.searchingFiles": "搜索中…",

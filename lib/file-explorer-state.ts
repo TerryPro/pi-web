@@ -1,5 +1,15 @@
 const EXPLORER_OPEN_STORAGE_KEY = "pi-web:file-explorer:open";
 
+/**
+ * Key for the explorer pane height. The height value itself is read/written by
+ * the shared useResizablePanel hook, but the key lives here next to the other
+ * explorer preferences so the storage namespace stays in one place.
+ */
+export const EXPLORER_HEIGHT_STORAGE_KEY = "pi-web:file-explorer:height";
+
+export const EXPLORER_MIN_HEIGHT = 120;
+export const EXPLORER_DEFAULT_HEIGHT = 280;
+
 interface StorageLike {
   getItem(key: string): string | null;
   setItem(key: string, value: string): void;

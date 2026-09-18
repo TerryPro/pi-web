@@ -202,28 +202,28 @@ export function AppShell() {
   const sidebarResizer = useResizablePanel({
     ariaLabel: translate("layout.resizeSidebar"),
     cssVariable: "--sidebar-width",
-    defaultWidth: SIDEBAR_DEFAULT_WIDTH,
-    getMaxWidth: getResponsiveSidebarMaxWidth,
+    defaultSize: SIDEBAR_DEFAULT_WIDTH,
+    getMaxSize: getResponsiveSidebarMaxWidth,
     growthDirection: "right",
-    maxWidth: SIDEBAR_MAX_WIDTH,
-    minWidth: SIDEBAR_MIN_WIDTH,
+    maxSize: SIDEBAR_MAX_WIDTH,
+    minSize: SIDEBAR_MIN_WIDTH,
     storageKey: "pi-sidebar-width",
-    widthRef: sidebarWidthRef,
+    sizeRef: sidebarWidthRef,
   });
   const rightPanelResizer = useResizablePanel({
     ariaLabel: translate("layout.resizeFilePanel"),
     cssVariable: "--right-panel-width",
-    defaultWidth: RIGHT_PANEL_FALLBACK_WIDTH,
-    getDefaultWidth: getResponsiveRightPanelWidth,
-    getMaxWidth: getResponsiveRightPanelMaxWidth,
+    defaultSize: RIGHT_PANEL_FALLBACK_WIDTH,
+    getDefaultSize: getResponsiveRightPanelWidth,
+    getMaxSize: getResponsiveRightPanelMaxWidth,
     growthDirection: "left",
-    maxWidth: RIGHT_PANEL_MAX_WIDTH,
-    minWidth: RIGHT_PANEL_MIN_WIDTH,
+    maxSize: RIGHT_PANEL_MAX_WIDTH,
+    minSize: RIGHT_PANEL_MIN_WIDTH,
     storageKey: "pi-right-panel-width",
-    widthRef: rightPanelWidthRef,
+    sizeRef: rightPanelWidthRef,
   });
-  const reclampSidebarWidth = sidebarResizer.reclampWidth;
-  const reclampRightPanelWidth = rightPanelResizer.reclampWidth;
+  const reclampSidebarWidth = sidebarResizer.reclampSize;
+  const reclampRightPanelWidth = rightPanelResizer.reclampSize;
   // On mobile the sidebar is an overlay drawer; hide it by default so the chat
   // is visible on load. Runs once the breakpoint resolves after hydration.
   useEffect(() => {
@@ -1847,7 +1847,7 @@ export function AppShell() {
         id="session-sidebar"
         className={`sidebar-container${sidebarOpen ? " sidebar-open" : " sidebar-closed"}${mobileSidebarReady ? "" : " sidebar-mobile-pending"}${sidebarResizer.isResizing ? " sidebar-resizing" : ""}`}
         style={{
-          "--sidebar-width": `${sidebarResizer.width}px`,
+          "--sidebar-width": `${sidebarResizer.size}px`,
           background: "var(--bg-panel)",
           borderRight: "1px solid var(--border)",
           display: "flex",
@@ -2341,7 +2341,7 @@ export function AppShell() {
         id="file-panel"
         className={`right-panel-container${rightPanelOpen ? " right-panel-open" : " right-panel-closed"}${rightPanelResizer.isResizing ? " right-panel-resizing" : ""}`}
         style={{
-          "--right-panel-width": `${rightPanelResizer.width}px`,
+          "--right-panel-width": `${rightPanelResizer.size}px`,
           display: "flex",
           flexDirection: "column",
           borderLeft: "1px solid var(--border)",

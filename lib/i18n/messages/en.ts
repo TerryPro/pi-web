@@ -244,6 +244,7 @@ export const enLocale: LocalePlugin = {
     "sidebar.uploadFilesTitle": "Upload files to project root",
     "sidebar.uploadFiles": "Upload files",
     "sidebar.refreshExplorer": "Refresh explorer",
+    "sidebar.resizeExplorer": "Drag to resize the file browser",
     "sidebar.searchFiles": "Search files",
     "sidebar.searchFilesPlaceholder": "Search files…",
     "sidebar.searchingFiles": "Searching…",

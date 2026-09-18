@@ -3,7 +3,8 @@
 import { useEffect, useLayoutEffect, useState, useCallback, useMemo, useRef, type CSSProperties, type ReactNode } from "react";
 import type { SessionInfo } from "@/lib/types";
 import { listSessionFamilies } from "@/lib/session-family";
-import { loadExplorerOpen, saveExplorerOpen } from "@/lib/file-explorer-state";
+import { EXPLORER_DEFAULT_HEIGHT, EXPLORER_HEIGHT_STORAGE_KEY, EXPLORER_MIN_HEIGHT, loadExplorerOpen, saveExplorerOpen } from "@/lib/file-explorer-state";
+import { useResizablePanel } from "@/hooks/useResizablePanel";
 import { dispatchSessionRowContextMenu } from "@/lib/session-row-context-menu";
 import { skillExpansionToCommand } from "@/lib/slash-display";
 import { getProjectActivity, getRecentProjects, sessionsForProject } from "@/lib/project-groups";
@@ -17,6 +18,14 @@ import { SessionSearch } from "./SessionSearch";
 // Fixed row height for the session list. SessionItem renders at exactly this
 // height, so the list can be windowed (only the visible slice is mounted).
 const SESSION_LIST_ITEM_HEIGHT = 54;
+
+// The session list keeps at least this much vertical space when the explorer
+// is resized, and the drag handle between the two panes is this tall.
+const SESSION_LIST_MIN_HEIGHT = 80;
+const EXPLORER_RESIZE_HANDLE_HEIGHT = 7;
+// Hard ceiling for the explorer pane; the real bound is measured from the live
+// sidebar height, so this only guards against an absurd stored value.
+const EXPLORER_MAX_HEIGHT_CAP = 2000;
 
 export function getSessionListIndices(count: number, scrollTop: number, viewportHeight: number, focusedIndex = -1): number[] {
   const overscan = 8;
@@ -420,6 +429,39 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
   const explorerRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fileExplorerRef = useRef<FileExplorerHandle>(null);
 
+  // Resizable file explorer height, driven by the shared panel-resize hook so
+  // pointer capture, body-cursor restore, blur/visibility cancellation, ARIA and
+  // localStorage all live in one place. The explorer pane is pinned to
+  // `--explorer-height` (written straight to the DOM during a drag) and the
+  // session list absorbs the remaining space.
+  const sidebarColumnRef = useRef<HTMLDivElement>(null);
+  const explorerHeightRef = useRef(EXPLORER_DEFAULT_HEIGHT);
+
+  // Everything above the session list is fixed, so its top edge relative to the
+  // column tells us how much vertical room the explorer can still claim while
+  // leaving the session list its minimum.
+  const getExplorerMaxHeight = useCallback(() => {
+    const column = sidebarColumnRef.current;
+    const list = listScrollRef.current;
+    if (!column || !list) return EXPLORER_MAX_HEIGHT_CAP;
+    const fixedAbove = list.getBoundingClientRect().top - column.getBoundingClientRect().top;
+    const available = column.clientHeight - fixedAbove - SESSION_LIST_MIN_HEIGHT - EXPLORER_RESIZE_HANDLE_HEIGHT;
+    return Math.max(EXPLORER_MIN_HEIGHT, available);
+  }, []);
+
+  const explorerResizer = useResizablePanel({
+    ariaLabel: t("sidebar.resizeExplorer"),
+    axis: "y",
+    cssVariable: "--explorer-height",
+    defaultSize: EXPLORER_DEFAULT_HEIGHT,
+    getMaxSize: getExplorerMaxHeight,
+    growthDirection: "up",
+    maxSize: EXPLORER_MAX_HEIGHT_CAP,
+    minSize: EXPLORER_MIN_HEIGHT,
+    storageKey: EXPLORER_HEIGHT_STORAGE_KEY,
+    sizeRef: explorerHeightRef,
+  });
+
   // Virtualized session list: only the visible window of rows is mounted.
   const listScrollRef = useRef<HTMLDivElement>(null);
   const [listViewportH, setListViewportH] = useState(0);
@@ -504,6 +546,9 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
   useEffect(() => {
     setExplorerOpen(loadExplorerOpen());
   }, []);
+
+  // The explorer height itself (restore + live window-resize clamping) is owned
+  // by useResizablePanel above.
 
   // Persist unread markers so they survive a browser refresh before the user
   // has actually opened the completed session.
@@ -1013,7 +1058,7 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
   );
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
+    <div ref={sidebarColumnRef} style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
       {customPathOpen && (
         <DirectoryPicker
           initialPath={customPathValue}
@@ -1677,7 +1722,7 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
       <div
         ref={listScrollRef}
         onScroll={handleListScroll}
-        style={{ flex: explorerOpen && (selectedCwdProp || selectedCwd) ? "1 1 0" : "1 1 auto", overflowY: "auto", padding: "0", minHeight: 80 }}
+        style={{ flex: explorerOpen && (selectedCwdProp || selectedCwd) ? "1 1 0" : "1 1 auto", overflowY: "auto", padding: "0", minHeight: SESSION_LIST_MIN_HEIGHT }}
       >
         {loading && (
           <div style={{ padding: "16px 14px", color: "var(--text-muted)", fontSize: 12 }}>
@@ -1737,12 +1782,25 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
 
       {/* File Explorer section */}
       {(selectedCwdProp || selectedCwd) && (
+        <>
+          {explorerOpen && (
+            <div
+              {...explorerResizer.separatorProps}
+              title={`${t("sidebar.resizeExplorer")}: ${t("layout.resizeHint")}`}
+              className={`explorer-resize-handle${explorerResizer.isResizing ? " is-resizing" : ""}`}
+            />
+          )}
         <div
+          ref={explorerResizer.panelRef}
           style={{
-            borderTop: "1px solid var(--border)",
+            borderTop: explorerOpen ? "none" : "1px solid var(--border)",
             display: "flex",
             flexDirection: "column",
-            flex: explorerOpen ? "1 1 0" : "0 0 auto",
+            flex: "0 0 auto",
+            // Fallback tracks the hook's committed size so the pane renders at
+            // the restored height even before the drag writes `--explorer-height`
+            // onto this element; using a constant here caused a jump on first click.
+            height: explorerOpen ? `var(--explorer-height, ${explorerResizer.size}px)` : undefined,
             minHeight: 0,
             overflow: "hidden",
           }}
@@ -1879,6 +1937,7 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
             </div>
           )}
         </div>
+        </>
       )}
     </div>
   );

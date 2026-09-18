@@ -1571,6 +1571,38 @@ span.token.table {
 .panel-resize-handle.is-resizing::after {
   background: color-mix(in srgb, var(--text-muted) 70%, var(--border));
 }
+
+/* Horizontal counterpart of .panel-resize-handle for the in-sidebar file
+   explorer. The handle carries the idle separator border and keeps a real
+   normal-flow hit strip (the explorer section is tall and would otherwise
+   capture the pointer), revealing the same highlight line on interaction. */
+.explorer-resize-handle {
+  position: relative;
+  z-index: 1;
+  height: 7px;
+  flex: 0 0 7px;
+  cursor: row-resize;
+  touch-action: none;
+  outline: none;
+  background: transparent;
+  border-top: 1px solid var(--border);
+}
+.explorer-resize-handle::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 2px;
+  pointer-events: none;
+  background: transparent;
+  transition: background 0.12s ease;
+}
+.explorer-resize-handle:hover::after,
+.explorer-resize-handle:focus-visible::after,
+.explorer-resize-handle.is-resizing::after {
+  background: color-mix(in srgb, var(--text-muted) 70%, var(--border));
+}
 .right-panel-overlay-backdrop {
   display: none;
 }
