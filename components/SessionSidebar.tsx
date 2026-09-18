@@ -23,8 +23,9 @@ const SESSION_LIST_ITEM_HEIGHT = 54;
 // is resized, and the drag handle between the two panes is this tall.
 const SESSION_LIST_MIN_HEIGHT = 80;
 const EXPLORER_RESIZE_HANDLE_HEIGHT = 7;
-// Hard ceiling for the explorer pane; the real bound is measured from the live
-// sidebar height, so this only guards against an absurd stored value.
+// Hard ceiling for the explorer pane. The real bound is measured from the live
+// sidebar height (see `getExplorerMaxHeight`), so this only guards the hook
+// against an absurd stored value and is never used as an "unknown" sentinel.
 const EXPLORER_MAX_HEIGHT_CAP = 2000;
 
 export function getSessionListIndices(count: number, scrollTop: number, viewportHeight: number, focusedIndex = -1): number[] {
@@ -429,39 +430,6 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
   const explorerRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fileExplorerRef = useRef<FileExplorerHandle>(null);
 
-  // Resizable file explorer height, driven by the shared panel-resize hook so
-  // pointer capture, body-cursor restore, blur/visibility cancellation, ARIA and
-  // localStorage all live in one place. The explorer pane is pinned to
-  // `--explorer-height` (written straight to the DOM during a drag) and the
-  // session list absorbs the remaining space.
-  const sidebarColumnRef = useRef<HTMLDivElement>(null);
-  const explorerHeightRef = useRef(EXPLORER_DEFAULT_HEIGHT);
-
-  // Everything above the session list is fixed, so its top edge relative to the
-  // column tells us how much vertical room the explorer can still claim while
-  // leaving the session list its minimum.
-  const getExplorerMaxHeight = useCallback(() => {
-    const column = sidebarColumnRef.current;
-    const list = listScrollRef.current;
-    if (!column || !list) return EXPLORER_MAX_HEIGHT_CAP;
-    const fixedAbove = list.getBoundingClientRect().top - column.getBoundingClientRect().top;
-    const available = column.clientHeight - fixedAbove - SESSION_LIST_MIN_HEIGHT - EXPLORER_RESIZE_HANDLE_HEIGHT;
-    return Math.max(EXPLORER_MIN_HEIGHT, available);
-  }, []);
-
-  const explorerResizer = useResizablePanel({
-    ariaLabel: t("sidebar.resizeExplorer"),
-    axis: "y",
-    cssVariable: "--explorer-height",
-    defaultSize: EXPLORER_DEFAULT_HEIGHT,
-    getMaxSize: getExplorerMaxHeight,
-    growthDirection: "up",
-    maxSize: EXPLORER_MAX_HEIGHT_CAP,
-    minSize: EXPLORER_MIN_HEIGHT,
-    storageKey: EXPLORER_HEIGHT_STORAGE_KEY,
-    sizeRef: explorerHeightRef,
-  });
-
   // Virtualized session list: only the visible window of rows is mounted.
   const listScrollRef = useRef<HTMLDivElement>(null);
   const [listViewportH, setListViewportH] = useState(0);
@@ -487,6 +455,77 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
     setListScrollTop(el.scrollTop);
     return () => ro.disconnect();
   }, [sessionSearchActive]);
+
+  // Resizable file explorer height, driven by the shared panel-resize hook so
+  // pointer capture, body-cursor restore, blur/visibility cancellation, ARIA and
+  // localStorage all live in one place. The explorer pane is pinned to
+  // `--explorer-height` (written straight to the DOM during a drag) and the
+  // session list absorbs the remaining space.
+  //
+  // Declared below `listScrollRef` on purpose: the hook reads `aria-valuemax`
+  // through `getExplorerMaxHeight` during render, so the ref it measures must
+  // already be initialised in this render's scope.
+  const sidebarColumnRef = useRef<HTMLDivElement>(null);
+  // The session slot holds either the session list or, while a search query is
+  // active, the search results pane. Measuring whichever is mounted keeps the
+  // explorer bound correct in both states.
+  const sessionSearchResultsRef = useRef<HTMLDivElement>(null);
+  const explorerHeightRef = useRef(EXPLORER_DEFAULT_HEIGHT);
+
+  // Everything above the session slot is fixed, so the slot's top edge relative
+  // to the column tells us how much vertical room the explorer can still claim
+  // while leaving the slot its minimum.
+  const getExplorerMaxHeight = useCallback(() => {
+    const column = sidebarColumnRef.current;
+    if (!column) return EXPLORER_MIN_HEIGHT;
+    const sessionArea = listScrollRef.current ?? sessionSearchResultsRef.current;
+    // No slot measured yet (first commit): fall back to the column itself, which
+    // is still a real ceiling — never a "no limit" value the drag could reach.
+    if (!sessionArea) return column.clientHeight;
+    const fixedAbove = sessionArea.getBoundingClientRect().top - column.getBoundingClientRect().top;
+    const available = column.clientHeight - fixedAbove - SESSION_LIST_MIN_HEIGHT - EXPLORER_RESIZE_HANDLE_HEIGHT;
+    return Math.max(EXPLORER_MIN_HEIGHT, available);
+  }, []);
+
+  const explorerResizer = useResizablePanel({
+    ariaLabel: t("sidebar.resizeExplorer"),
+    axis: "y",
+    cssVariable: "--explorer-height",
+    defaultSize: EXPLORER_DEFAULT_HEIGHT,
+    getMaxSize: getExplorerMaxHeight,
+    growthDirection: "up",
+    maxSize: EXPLORER_MAX_HEIGHT_CAP,
+    minSize: EXPLORER_MIN_HEIGHT,
+    storageKey: EXPLORER_HEIGHT_STORAGE_KEY,
+    sizeRef: explorerHeightRef,
+  });
+  const { isResizing: isExplorerResizing, reclampSize: reclampExplorerHeight } = explorerResizer;
+
+  // Only re-measure while the pointer is not already driving the height: mid-drag
+  // the live size is clamped on every pointermove, and committing here would
+  // fight the drag (it would re-clamp from the drag's start size).
+  const reclampExplorerHeightWhenSettled = useCallback(() => {
+    if (isExplorerResizing) return;
+    reclampExplorerHeight();
+  }, [isExplorerResizing, reclampExplorerHeight]);
+
+  // The room above the session slot is not stable: projects and sessions load in
+  // after the first paint, and the list is swapped for the search results. Both
+  // change the live bound, so re-measure on every signal we already have for it.
+  useLayoutEffect(() => {
+    reclampExplorerHeightWhenSettled();
+  }, [listViewportH, reclampExplorerHeightWhenSettled, sessionSearchActive]);
+
+  // The sidebar can also change height without a window resize (mobile overlay,
+  // viewport-height changes), and while the search results occupy the slot the
+  // list cannot report it, so track the column itself as well.
+  useLayoutEffect(() => {
+    const column = sidebarColumnRef.current;
+    if (!column) return;
+    const ro = new ResizeObserver(() => reclampExplorerHeightWhenSettled());
+    ro.observe(column);
+    return () => ro.disconnect();
+  }, [reclampExplorerHeightWhenSettled]);
 
   const loadSessions = useCallback(async (showLoading = false, force = false) => {
     const loadId = ++sessionLoadIdRef.current;
@@ -1718,7 +1757,7 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
       </div>
 
       {/* Session list */}
-      <SessionSearch open={sessionSearchOpen} query={sessionSearchQuery} refreshKey={sessionListVersion} selectedSessionId={selectedSessionId} onSelectSession={handleSelectSessionFromList}>
+      <SessionSearch open={sessionSearchOpen} query={sessionSearchQuery} refreshKey={sessionListVersion} selectedSessionId={selectedSessionId} onSelectSession={handleSelectSessionFromList} resultsRef={sessionSearchResultsRef}>
       <div
         ref={listScrollRef}
         onScroll={handleListScroll}
@@ -1796,12 +1835,15 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
             borderTop: explorerOpen ? "none" : "1px solid var(--border)",
             display: "flex",
             flexDirection: "column",
-            flex: "0 0 auto",
+            // Shrinkable (unlike the other panels): if the stored height no longer
+            // fits the column, the pane gives up space instead of pushing its
+            // content — and the session slot's minimum — out of the sidebar.
+            flex: "0 1 auto",
             // Fallback tracks the hook's committed size so the pane renders at
             // the restored height even before the drag writes `--explorer-height`
             // onto this element; using a constant here caused a jump on first click.
             height: explorerOpen ? `var(--explorer-height, ${explorerResizer.size}px)` : undefined,
-            minHeight: 0,
+            minHeight: explorerOpen ? EXPLORER_MIN_HEIGHT : 0,
             overflow: "hidden",
           }}
         >

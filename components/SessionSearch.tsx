@@ -1,18 +1,21 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode, type RefObject } from "react";
 import { useI18n } from "@/hooks/useI18n";
 import { formatRelativeTime } from "@/lib/i18n/format";
 import type { SessionInfo } from "@/lib/types";
 import type { SessionSearchResponse } from "@/lib/session-search";
 
-export function SessionSearch({ open, query, refreshKey, children, selectedSessionId, onSelectSession }: {
+export function SessionSearch({ open, query, refreshKey, children, selectedSessionId, onSelectSession, resultsRef }: {
   open: boolean;
   query: string;
   refreshKey: number | null;
   children: ReactNode;
   selectedSessionId: string | null;
   onSelectSession: (session: SessionInfo, entryId?: string, blockIndex?: number) => void;
+  /** The results pane replaces `children` in the same slot, so callers that
+   *  measure the list slot need to reach it too. */
+  resultsRef?: RefObject<HTMLDivElement | null>;
 }) {
   const { t, locale } = useI18n();
   const [state, setState] = useState<{ query: string; response?: SessionSearchResponse; failed?: boolean }>({ query: "" });
@@ -41,7 +44,7 @@ export function SessionSearch({ open, query, refreshKey, children, selectedSessi
   }, [open, search, refreshKey]);
 
   return !open || !search ? children : (
-    <div className="min-h-20 flex-1 overflow-y-auto" aria-busy={!response && !failed}>
+    <div ref={resultsRef} className="min-h-20 flex-1 overflow-y-auto" aria-busy={!response && !failed}>
       <div role="status" className="px-3 py-2 text-xs text-text-muted">
         {failed ? t("sidebar.sessionSearchFailed") : !response ? t("sidebar.sessionSearching")
           : response.results.length === 0 ? t("sidebar.sessionSearchEmpty")
