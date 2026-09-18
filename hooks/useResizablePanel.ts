@@ -9,7 +9,12 @@ import {
   type MutableRefObject,
   type PointerEvent,
 } from "react";
-import { clampPanelWidth } from "@/lib/panel-layout";
+import {
+  clampPanelWidth,
+  getPanelAxisBehavior,
+  type HorizontalGrowthDirection,
+  type VerticalGrowthDirection,
+} from "@/lib/panel-layout";
 
 interface DragState {
   pointerId: number;
@@ -20,22 +25,28 @@ interface DragState {
   previousUserSelect: string;
 }
 
-interface UseResizablePanelOptions {
+interface ResizablePanelCommonOptions {
   ariaLabel: string;
-  /** Axis the panel grows along. Defaults to the horizontal ("x") case. */
-  axis?: "x" | "y";
   cssVariable: `--${string}`;
   defaultSize: number;
   getDefaultSize?: () => number;
   /** Live upper bound, re-read on every commit/resize (e.g. measured from the DOM). */
   getMaxSize: () => number;
-  /** Direction the panel grows when the pointer moves positively along the axis. */
-  growthDirection: "left" | "right" | "up" | "down";
   maxSize: number;
   minSize: number;
   storageKey: string;
   sizeRef: MutableRefObject<number>;
 }
+
+/**
+ * The axis decides which growth directions are meaningful, so an inverted pair
+ * (a vertical pane that grows "left") is rejected at the call site instead of
+ * silently flipping the drag sign.
+ */
+export type UseResizablePanelOptions = ResizablePanelCommonOptions & (
+  | { axis?: "x"; growthDirection: HorizontalGrowthDirection }
+  | { axis: "y"; growthDirection: VerticalGrowthDirection }
+);
 
 interface CommitOptions {
   forcePersist?: boolean;
@@ -75,10 +86,11 @@ export function useResizablePanel(options: UseResizablePanelOptions) {
     storageKey,
     sizeRef,
   } = options;
-  const isVertical = axis === "y";
-  // A "left"/"up" panel grows as the pointer moves negatively along the axis;
-  // "right"/"down" grows as it moves positively.
-  const growthSign = growthDirection === "right" || growthDirection === "down" ? 1 : -1;
+  // Everything axis-dependent lives in one pure helper (see lib/panel-layout.ts)
+  // so the vertical case is testable without a DOM. Only primitives are
+  // destructured here, which keeps the callbacks below referentially stable.
+  const { bodyCursor, coord, growKey, separatorOrientation, shrinkKey, sign } =
+    getPanelAxisBehavior(axis, growthDirection);
   const panelRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<DragState | null>(null);
   const restoredRef = useRef(false);
@@ -137,8 +149,8 @@ export function useResizablePanel(options: UseResizablePanelOptions) {
   }, [commitSize, restoreBodyState, sizeRef]);
 
   const pointerCoord = useCallback(
-    (event: PointerEvent<HTMLDivElement>) => (isVertical ? event.clientY : event.clientX),
-    [isVertical],
+    (event: PointerEvent<HTMLDivElement>) => event[coord],
+    [coord],
   );
 
   const onPointerDown = useCallback((event: PointerEvent<HTMLDivElement>) => {
@@ -160,10 +172,10 @@ export function useResizablePanel(options: UseResizablePanelOptions) {
       previousCursor: document.body.style.cursor,
       previousUserSelect: document.body.style.userSelect,
     };
-    document.body.style.cursor = isVertical ? "row-resize" : "col-resize";
+    document.body.style.cursor = bodyCursor;
     document.body.style.userSelect = "none";
     setIsResizing(true);
-  }, [finishResize, isVertical, pointerCoord, sizeRef]);
+  }, [bodyCursor, finishResize, pointerCoord, sizeRef]);
 
   const onPointerMove = useCallback((event: PointerEvent<HTMLDivElement>) => {
     const drag = dragRef.current;
@@ -174,11 +186,11 @@ export function useResizablePanel(options: UseResizablePanelOptions) {
     }
     event.preventDefault();
 
-    const nextSize = clampSize(drag.startSize + ((pointerCoord(event) - drag.startCoord) * growthSign));
+    const nextSize = clampSize(drag.startSize + ((pointerCoord(event) - drag.startCoord) * sign));
     applyLiveSize(nextSize);
     event.currentTarget.setAttribute("aria-valuenow", String(nextSize));
     event.currentTarget.setAttribute("aria-valuetext", `${nextSize} px`);
-  }, [applyLiveSize, clampSize, finishResize, growthSign, pointerCoord]);
+  }, [applyLiveSize, clampSize, finishResize, pointerCoord, sign]);
 
   const onPointerUp = useCallback((event: PointerEvent<HTMLDivElement>) => {
     finishResize(event.pointerId);
@@ -203,13 +215,6 @@ export function useResizablePanel(options: UseResizablePanelOptions) {
 
   const onKeyDown = useCallback((event: KeyboardEvent<HTMLDivElement>) => {
     const step = event.shiftKey ? 32 : 12;
-    const positive = growthSign > 0;
-    const growKey = isVertical
-      ? (positive ? "ArrowDown" : "ArrowUp")
-      : (positive ? "ArrowRight" : "ArrowLeft");
-    const shrinkKey = isVertical
-      ? (positive ? "ArrowUp" : "ArrowDown")
-      : (positive ? "ArrowLeft" : "ArrowRight");
 
     if (event.key === growKey) {
       event.preventDefault();
@@ -227,7 +232,7 @@ export function useResizablePanel(options: UseResizablePanelOptions) {
       event.preventDefault();
       resetSize();
     }
-  }, [commitSize, effectiveMaxSize, growthSign, isVertical, minSize, resetSize, sizeRef]);
+  }, [commitSize, effectiveMaxSize, growKey, minSize, resetSize, shrinkKey, sizeRef]);
 
   useEffect(() => {
     if (restoredRef.current) return;
@@ -285,7 +290,7 @@ export function useResizablePanel(options: UseResizablePanelOptions) {
     resetSize,
     separatorProps: {
       "aria-label": ariaLabel,
-      "aria-orientation": (isVertical ? "horizontal" : "vertical") as "horizontal" | "vertical",
+      "aria-orientation": separatorOrientation,
       "aria-valuemax": mounted ? effectiveMaxSize() : maxSize,
       "aria-valuemin": minSize,
       "aria-valuenow": size,

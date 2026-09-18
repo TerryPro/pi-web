@@ -18,6 +18,59 @@ export function clampPanelWidth(width: number, minWidth: number, maxWidth: numbe
   return Math.round(Math.max(minWidth, Math.min(effectiveMax, finiteWidth)));
 }
 
+export type PanelAxis = "x" | "y";
+export type HorizontalGrowthDirection = "left" | "right";
+export type VerticalGrowthDirection = "up" | "down";
+export type PanelGrowthDirection = HorizontalGrowthDirection | VerticalGrowthDirection;
+export type PanelResizeKey = "ArrowLeft" | "ArrowRight" | "ArrowUp" | "ArrowDown";
+
+export interface PanelAxisBehavior {
+  /** Body cursor held while the drag is active. */
+  bodyCursor: "col-resize" | "row-resize";
+  /** Pointer coordinate the drag reads. */
+  coord: "clientX" | "clientY";
+  growKey: PanelResizeKey;
+  /** A horizontal separator splits vertically stacked panes, and vice versa. */
+  separatorOrientation: "horizontal" | "vertical";
+  shrinkKey: PanelResizeKey;
+  /** Applied to a positive movement along `coord`: the pane grows when the pointer moves this way. */
+  sign: 1 | -1;
+}
+
+/**
+ * The axis-dependent half of a resize handle: which pointer coordinate to read,
+ * which way the pane grows, and how the separator presents itself.
+ *
+ * Kept pure so the vertical case is testable without a DOM, and so the axis and
+ * the growth direction cannot be paired into a silently inverted drag.
+ */
+export function getPanelAxisBehavior(
+  axis: PanelAxis,
+  growthDirection: PanelGrowthDirection,
+): PanelAxisBehavior {
+  // Only "right" and "down" move positively along their axis.
+  const positive = growthDirection === "right" || growthDirection === "down";
+  const sign = positive ? 1 : -1;
+  if (axis === "y") {
+    return {
+      bodyCursor: "row-resize",
+      coord: "clientY",
+      growKey: positive ? "ArrowDown" : "ArrowUp",
+      separatorOrientation: "horizontal",
+      shrinkKey: positive ? "ArrowUp" : "ArrowDown",
+      sign,
+    };
+  }
+  return {
+    bodyCursor: "col-resize",
+    coord: "clientX",
+    growKey: positive ? "ArrowRight" : "ArrowLeft",
+    separatorOrientation: "vertical",
+    shrinkKey: positive ? "ArrowLeft" : "ArrowRight",
+    sign,
+  };
+}
+
 export function getDefaultRightPanelWidth(viewportWidth: number): number {
   return clampPanelWidth(viewportWidth * 0.42, 360, 640);
 }
