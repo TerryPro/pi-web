@@ -13,13 +13,18 @@ const enSource = await readFile(new URL("../lib/i18n/messages/en.ts", import.met
 const zhSource = await readFile(new URL("../lib/i18n/messages/zh-CN.ts", import.meta.url), "utf8");
 const loginSource = await readFile(new URL("../app/login/page.tsx", import.meta.url), "utf8");
 
-test("opens one settings panel from direct sidebar shortcuts", () => {
+test("opens one settings panel from a single sidebar entry", () => {
   assert.match(shellSource, /<SettingsPanel/);
-  assert.match(shellSource, /setSettingsSection\(section\)/);
   assert.match(shellSource, /initialSection=\{settingsSection\}/);
-  assert.match(shellSource, /translate\("common\.settings"\)/);
-  assert.match(shellSource, /<SettingsSectionIcon section=\{section\} size=\{14\} strokeWidth=\{2\} \/>\s*<span>\{label\}<\/span>/);
-  assert.match(shellSource, /<SettingsSectionIcon section="general" size=\{14\} strokeWidth=\{2\} \/>/);
+  // One entry point only: the sidebar exposes a settings button that reopens the
+  // last visited section, instead of a models/skills/settings shortcut row.
+  assert.match(shellSource, /onOpenSettings=\{\(\) => setSettingsSection\(getLastSettingsSection\(projectTrustCwd\)\)\}/);
+  assert.match(sidebarSource, /onOpenSettings\?: \(\) => void;/);
+  assert.match(sidebarSource, /title=\{t\("common\.settings"\)\}/);
+  assert.match(sidebarSource, /<SettingsSectionIcon section="general" size=\{18\} strokeWidth=\{2\} \/>/);
+  assert.equal((sidebarSource.match(/onClick=\{onOpenSettings\}/g) ?? []).length, 1);
+  assert.doesNotMatch(shellSource, /setSettingsSection\(section\)/);
+  assert.doesNotMatch(shellSource, /translate\("common\.(?:models|skills|settings)"\)/);
   assert.doesNotMatch(shellSource, /\["plugins", translate\("common\.plugins"\)\]/);
   assert.doesNotMatch(shellSource, /setModelsConfigOpen|setSkillsConfigOpen|setAgentsConfigOpen|setPluginsConfigOpen/);
 });

@@ -14,6 +14,7 @@ import { useI18n } from "@/hooks/useI18n";
 import { DirectoryPicker } from "./DirectoryPicker";
 import { FileExplorer, type FileExplorerHandle } from "./FileExplorer";
 import { SessionSearch } from "./SessionSearch";
+import { SettingsSectionIcon } from "./SettingsPanel";
 
 // Fixed row height for the session list. SessionItem renders at exactly this
 // height, so the list can be windowed (only the visible slice is mounted).
@@ -133,6 +134,9 @@ interface Props {
   onBackgroundTaskDone?: () => void;
   onRunningSessionIdsChange?: (ids: Set<string>) => void;
   onSessionsChange?: (sessions: SessionInfo[]) => void;
+  /** Opens the settings dialog. Rendered as the trailing icon button on the
+   *  project picker row. */
+  onOpenSettings?: () => void;
 }
 
 interface WorktreeEntry {
@@ -379,7 +383,7 @@ function PiWebTitle() {
   );
 }
 
-export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSession, initialSessionId, skipInitialProjectSelection, onInitialRestoreDone, refreshKey, onSessionDeleted, selectedCwd: selectedCwdProp, onCwdChange, onOpenFile, onOpenTerminal, explorerRefreshKey, onExplorerRefresh, onAtMention, onAtMentions, onBackgroundTaskDone, onRunningSessionIdsChange, onSessionsChange }: Props) {
+export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSession, initialSessionId, skipInitialProjectSelection, onInitialRestoreDone, refreshKey, onSessionDeleted, selectedCwd: selectedCwdProp, onCwdChange, onOpenFile, onOpenTerminal, explorerRefreshKey, onExplorerRefresh, onAtMention, onAtMentions, onBackgroundTaskDone, onRunningSessionIdsChange, onSessionsChange, onOpenSettings }: Props) {
   const { t } = useI18n();
   const [allSessions, setAllSessions] = useState<SessionInfo[]>([]);
   const [sessionListVersion, setSessionListVersion] = useState<number | null>(null);
@@ -1178,160 +1182,195 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
           </div>
         </div>
 
-        {/* CWD picker */}
-        <div ref={dropdownRef} style={{ position: "relative" }}>
-          <button
-            onClick={() => setDropdownOpen((v) => !v)}
-            title={selectedProject?.root ?? selectedCwd ?? ""}
-            style={{
-              width: "100%",
-              display: "flex",
-              alignItems: "center",
-              padding: "6px 10px",
-              background: selectedCwd ? "var(--bg-hover)" : "rgba(37,99,235,0.06)",
-              border: selectedCwd ? "1px solid var(--border)" : "1px solid rgba(37,99,235,0.4)",
-              borderRadius: 7,
-              cursor: "pointer",
-              fontSize: 12,
-              color: "var(--text)",
-              textAlign: "left",
-              transition: "border-color 0.15s, background 0.15s",
-            }}
-          >
-            {selectedCwd ? (
-              <PathLabel
-                text={displayCwd(selectedProject?.root ?? selectedCwd, homeDir)}
-                style={{
-                  flex: 1,
-                  fontFamily: "var(--font-mono)",
-                  fontSize: 11,
-                  color: "var(--text)",
-                }}
-              />
-            ) : (
-              <span
-                style={{
-                  flex: 1,
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                  fontFamily: "var(--font-mono)",
-                  fontSize: 11,
-                  color: "var(--text-dim)",
-                }}
-              >
-                 {initialSessionId && !restoredRef.current ? "" : t("sidebar.selectProject")}
-              </span>
-            )}
-            {hasOtherWorkspaceActivity && (
-              <span
-                title={t("sidebar.newActivity")}
-                aria-label={t("sidebar.newActivity")}
-                style={{
-                  width: 8,
-                  height: 8,
-                  borderRadius: "50%",
-                  flexShrink: 0,
-                  marginLeft: 6,
-                  background: "var(--accent)",
-                }}
-              />
-            )}
-          </button>
-
-          <AnimatedDropdown
-            open={dropdownOpen}
-            style={{
-              position: "absolute",
-              top: "calc(100% + 4px)",
-              left: 0,
-              right: 0,
-              zIndex: 100,
-              background: "var(--bg)",
-              border: "1px solid var(--border)",
-              borderRadius: 8,
-              boxShadow: "0 6px 20px rgba(0,0,0,0.10)",
-              overflow: "hidden",
-            }}
-          >
-              {showProjectFilter && (
-                <div style={{ padding: "6px 8px", borderBottom: "1px solid var(--border)" }}>
-                  <input
-                    value={projectFilter}
-                    onChange={(e) => setProjectFilter(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Escape") {
-                        setProjectFilter("");
-                        setDropdownOpen(false);
-                      }
-                    }}
-                     placeholder={t("sidebar.filterProjects")}
-                    autoFocus
-                    style={{
-                      width: "100%",
-                      fontSize: 11,
-                      fontFamily: "var(--font-mono)",
-                      padding: "5px 8px",
-                      border: "1px solid var(--border)",
-                      borderRadius: 5,
-                      outline: "none",
-                      background: "var(--bg)",
-                      color: "var(--text)",
-                      boxSizing: "border-box",
-                    }}
-                  />
-                </div>
+        {/* The settings entry shares the project picker row: the title row is
+            already at its minimum width at SIDEBAR_MIN_WIDTH, so a third button
+            there would be clipped by the sidebar's overflow. The row — not the
+            picker wrapper — is also the dropdown's positioning context, so the
+            menu still spans the full sidebar width. */}
+        <div style={{ position: "relative", display: "flex", alignItems: "center", gap: 6 }}>
+          {/* `dropdownRef` wraps the picker only — it also backs the
+              outside-click-to-close check, so the gear has to stay outside it. */}
+          <div ref={dropdownRef} style={{ flex: 1, minWidth: 0 }}>
+            <button
+              onClick={() => setDropdownOpen((v) => !v)}
+              title={selectedProject?.root ?? selectedCwd ?? ""}
+              style={{
+                width: "100%",
+                display: "flex",
+                alignItems: "center",
+                padding: "6px 10px",
+                background: selectedCwd ? "var(--bg-hover)" : "rgba(37,99,235,0.06)",
+                border: selectedCwd ? "1px solid var(--border)" : "1px solid rgba(37,99,235,0.4)",
+                borderRadius: 7,
+                cursor: "pointer",
+                fontSize: 12,
+                color: "var(--text)",
+                textAlign: "left",
+                transition: "border-color 0.15s, background 0.15s",
+              }}
+            >
+              {selectedCwd ? (
+                <PathLabel
+                  text={displayCwd(selectedProject?.root ?? selectedCwd, homeDir)}
+                  style={{
+                    flex: 1,
+                    fontFamily: "var(--font-mono)",
+                    fontSize: 11,
+                    color: "var(--text)",
+                  }}
+                />
+              ) : (
+                <span
+                  style={{
+                    flex: 1,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                    fontFamily: "var(--font-mono)",
+                    fontSize: 11,
+                    color: "var(--text-dim)",
+                  }}
+                >
+                   {initialSessionId && !restoredRef.current ? "" : t("sidebar.selectProject")}
+                </span>
               )}
-              <div style={{ maxHeight: "min(50vh, 380px)", overflowY: "auto" }}>
-                {visibleProjects.map((project) => (
+              {hasOtherWorkspaceActivity && (
+                <span
+                  title={t("sidebar.newActivity")}
+                  aria-label={t("sidebar.newActivity")}
+                  style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: "50%",
+                    flexShrink: 0,
+                    marginLeft: 6,
+                    background: "var(--accent)",
+                  }}
+                />
+              )}
+            </button>
+
+            <AnimatedDropdown
+              open={dropdownOpen}
+              style={{
+                position: "absolute",
+                top: "calc(100% + 4px)",
+                left: 0,
+                right: 0,
+                zIndex: 100,
+                background: "var(--bg)",
+                border: "1px solid var(--border)",
+                borderRadius: 8,
+                boxShadow: "0 6px 20px rgba(0,0,0,0.10)",
+                overflow: "hidden",
+              }}
+            >
+                {showProjectFilter && (
+                  <div style={{ padding: "6px 8px", borderBottom: "1px solid var(--border)" }}>
+                    <input
+                      value={projectFilter}
+                      onChange={(e) => setProjectFilter(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Escape") {
+                          setProjectFilter("");
+                          setDropdownOpen(false);
+                        }
+                      }}
+                       placeholder={t("sidebar.filterProjects")}
+                      autoFocus
+                      style={{
+                        width: "100%",
+                        fontSize: 11,
+                        fontFamily: "var(--font-mono)",
+                        padding: "5px 8px",
+                        border: "1px solid var(--border)",
+                        borderRadius: 5,
+                        outline: "none",
+                        background: "var(--bg)",
+                        color: "var(--text)",
+                        boxSizing: "border-box",
+                      }}
+                    />
+                  </div>
+                )}
+                <div style={{ maxHeight: "min(50vh, 380px)", overflowY: "auto" }}>
+                  {visibleProjects.map((project) => (
+                    <button
+                      key={project.key}
+                      onClick={() => {
+                        setSelectedCwd(project.root);
+                        setProjectFilter("");
+                        setCustomPathOpen(false);
+                        setCustomPathError(null);
+                        setDropdownOpen(false);
+                      }}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 7,
+                        width: "100%",
+                        padding: "8px 10px",
+                        background: "var(--bg)",
+                        border: "none",
+                        borderBottom: "1px solid var(--border)",
+                        color: project.key === selectedProject?.key ? "var(--text)" : "var(--text-muted)",
+                        cursor: "pointer",
+                        textAlign: "left",
+                        fontSize: 11,
+                        fontFamily: "var(--font-mono)",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                      title={project.root}
+                    >
+                      {project.key === selectedProject?.key && (
+                        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                          <polyline points="1.5 5 4 7.5 8.5 2.5" />
+                        </svg>
+                      )}
+                      {project.key !== selectedProject?.key && <span style={{ width: 10, flexShrink: 0 }} />}
+                      <PathLabel text={displayCwd(project.root, homeDir)} style={{ flex: 1 }} />
+                      {showProjectActivity(projectActivity.get(project.key), t)}
+                    </button>
+                  ))}
+                  {visibleProjects.length === 0 && projectFilter.trim() && (
+                     <div style={{ padding: "8px 10px", fontSize: 11, color: "var(--text-dim)" }}>{t("sidebar.noMatchingProjects")}</div>
+                  )}
+                </div>
+
+                {/* Default cwd shortcut */}
+                {!customPathOpen && (
                   <button
-                    key={project.key}
-                    onClick={() => {
-                      setSelectedCwd(project.root);
-                      setProjectFilter("");
-                      setCustomPathOpen(false);
-                      setCustomPathError(null);
-                      setDropdownOpen(false);
-                    }}
+                    onClick={(e) => { e.stopPropagation(); handleDefaultCwd(); }}
                     style={{
                       display: "flex",
                       alignItems: "center",
                       gap: 7,
                       width: "100%",
                       padding: "8px 10px",
-                      background: "var(--bg)",
+                      background: "none",
                       border: "none",
-                      borderBottom: "1px solid var(--border)",
-                      color: project.key === selectedProject?.key ? "var(--text)" : "var(--text-muted)",
+                      borderTop: visibleProjects.length > 0 ? "1px solid var(--border)" : "none",
+                      color: "var(--text-muted)",
                       cursor: "pointer",
                       textAlign: "left",
                       fontSize: 11,
-                      fontFamily: "var(--font-mono)",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
                     }}
-                    title={project.root}
                   >
-                    {project.key === selectedProject?.key && (
-                      <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-                        <polyline points="1.5 5 4 7.5 8.5 2.5" />
-                      </svg>
-                    )}
-                    {project.key !== selectedProject?.key && <span style={{ width: 10, flexShrink: 0 }} />}
-                    <PathLabel text={displayCwd(project.root, homeDir)} style={{ flex: 1 }} />
-                    {showProjectActivity(projectActivity.get(project.key), t)}
+                    <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                      <path d="M1 3A1 1 0 0 1 2 2H4L5 3.5H8.5a.5.5 0 0 1 .5.5v4a.5.5 0 0 1-.5.5h-7A.5.5 0 0 1 1 8V3Z" />
+                    </svg>
+                     <span>{t("sidebar.useDefaultDirectory")}</span>
                   </button>
-                ))}
-                {visibleProjects.length === 0 && projectFilter.trim() && (
-                   <div style={{ padding: "8px 10px", fontSize: 11, color: "var(--text-dim)" }}>{t("sidebar.noMatchingProjects")}</div>
                 )}
-              </div>
 
-              {/* Default cwd shortcut */}
-              {!customPathOpen && (
+                {/* Custom path directory picker */}
                 <button
-                  onClick={(e) => { e.stopPropagation(); handleDefaultCwd(); }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleCustomPathClick();
+                  }}
                   style={{
                     display: "flex",
                     alignItems: "center",
@@ -1340,47 +1379,31 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
                     padding: "8px 10px",
                     background: "none",
                     border: "none",
-                    borderTop: visibleProjects.length > 0 ? "1px solid var(--border)" : "none",
                     color: "var(--text-muted)",
                     cursor: "pointer",
                     textAlign: "left",
                     fontSize: 11,
                   }}
                 >
-                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-                    <path d="M1 3A1 1 0 0 1 2 2H4L5 3.5H8.5a.5.5 0 0 1 .5.5v4a.5.5 0 0 1-.5.5h-7A.5.5 0 0 1 1 8V3Z" />
+                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" style={{ flexShrink: 0 }}>
+                    <line x1="5" y1="1" x2="5" y2="9" />
+                    <line x1="1" y1="5" x2="9" y2="5" />
                   </svg>
-                   <span>{t("sidebar.useDefaultDirectory")}</span>
+                  <span>{t("sidebar.customPath")}</span>
                 </button>
-              )}
-
-              {/* Custom path directory picker */}
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleCustomPathClick();
-                }}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 7,
-                  width: "100%",
-                  padding: "8px 10px",
-                  background: "none",
-                  border: "none",
-                  color: "var(--text-muted)",
-                  cursor: "pointer",
-                  textAlign: "left",
-                  fontSize: 11,
-                }}
-              >
-                <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" style={{ flexShrink: 0 }}>
-                  <line x1="5" y1="1" x2="5" y2="9" />
-                  <line x1="1" y1="5" x2="9" y2="5" />
-                </svg>
-                <span>{t("sidebar.customPath")}</span>
-              </button>
-          </AnimatedDropdown>
+            </AnimatedDropdown>
+          </div>
+          {onOpenSettings && (
+            <button
+              type="button"
+              onClick={onOpenSettings}
+              title={t("common.settings")}
+              aria-label={t("common.settings")}
+              className="flex h-[32px] w-[32px] shrink-0 cursor-pointer items-center justify-center rounded-[7px] border border-border bg-bg-hover text-text-muted hover:bg-bg-selected focus-visible:outline-2 focus-visible:outline-accent"
+            >
+              <SettingsSectionIcon section="general" size={18} strokeWidth={2} />
+            </button>
+          )}
         </div>
 
         {sessionSearchOpen && (

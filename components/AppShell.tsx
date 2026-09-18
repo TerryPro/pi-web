@@ -9,7 +9,7 @@ import type { ChatScrollPosition } from "@/lib/chat-scroll-position";
 import { FileViewer } from "./FileViewer";
 import { TabBar, type Tab } from "./TabBar";
 import { openFileTab, saveFileViewerState } from "./file-tab-state";
-import { SettingsPanel, SettingsSectionIcon } from "./SettingsPanel";
+import { SettingsPanel } from "./SettingsPanel";
 import { ProjectTrustDialog } from "./ProjectTrustDialog";
 import { BranchNavigator, hasSessionBranches } from "./BranchNavigator";
 import { SystemPromptPanel } from "./SystemPromptPanel";
@@ -1132,54 +1132,8 @@ export function AppShell() {
         onBackgroundTaskDone={handleBackgroundTaskDone}
         onRunningSessionIdsChange={handleRunningSessionIdsChange}
         onSessionsChange={handleSessionsChange}
+        onOpenSettings={() => setSettingsSection(getLastSettingsSection(projectTrustCwd))}
       />
-      <div style={{ padding: "8px", flexShrink: 0, display: "flex", justifyContent: "space-between", gap: 4 }}>
-        {([
-          ["models", translate("common.models")],
-          ["skills", translate("common.skills")],
-        ] as const).map(([section, label]) => {
-          const disabled = section !== "models" && !projectTrustCwd;
-          return (
-            <button
-              key={section}
-              type="button"
-              onClick={() => setSettingsSection(section)}
-              disabled={disabled}
-              title={disabled ? translate("settings.projectRequired") : label}
-              aria-label={label}
-              style={{
-                flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                height: 32, padding: 0, background: "none", border: "none",
-                borderRadius: 9, color: "var(--text-muted)", cursor: disabled ? "default" : "pointer",
-                fontSize: 12, opacity: disabled ? 0.35 : 1,
-                transition: "background 0.12s, color 0.12s",
-              }}
-              onMouseEnter={(event) => { if (!disabled) { event.currentTarget.style.background = "var(--bg-hover)"; event.currentTarget.style.color = "var(--text)"; } }}
-              onMouseLeave={(event) => { event.currentTarget.style.background = "none"; event.currentTarget.style.color = "var(--text-muted)"; }}
-            >
-              <SettingsSectionIcon section={section} size={14} strokeWidth={2} />
-              <span>{label}</span>
-            </button>
-          );
-        })}
-        <button
-          type="button"
-          onClick={() => setSettingsSection(getLastSettingsSection(projectTrustCwd))}
-          title={translate("common.settings")}
-          aria-label={translate("common.settings")}
-          style={{
-            flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-            height: 32, padding: 0, background: "none", border: "none",
-            borderRadius: 9, color: "var(--text-muted)", cursor: "pointer",
-            fontSize: 12, transition: "background 0.12s, color 0.12s",
-          }}
-          onMouseEnter={(event) => { event.currentTarget.style.background = "var(--bg-hover)"; event.currentTarget.style.color = "var(--text)"; }}
-          onMouseLeave={(event) => { event.currentTarget.style.background = "none"; event.currentTarget.style.color = "var(--text-muted)"; }}
-        >
-          <SettingsSectionIcon section="general" size={14} strokeWidth={2} />
-          <span>{translate("common.settings")}</span>
-        </button>
-      </div>
     </>
   );
 
